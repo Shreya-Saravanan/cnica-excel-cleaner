@@ -2,6 +2,7 @@ import gradio as gr
 import pandas as pd
 
 MAX_RESPONDENT_COUNT = 10
+MAX_ADDRESS_COUNT = 10
 
 def excel_file_changed(excel_path):
     if excel_path is None:
@@ -52,7 +53,25 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
         with gr.Tab(label=f"Respondent {i + 1}", visible=i==0) as respondent_tab:
             respondent_tabs.append(respondent_tab)
 
-            gr.Textbox()
+            with gr.Row():
+                with gr.Column():
+                    gr.Dropdown(
+                        label="Name column header"
+                    )
+
+                with gr.Column():
+                    gr.Slider(
+                        label="No. of Address column headers",
+                        minimum=1,
+                        maximum=MAX_ADDRESS_COUNT,
+                        step=1,
+                        interactive=True
+                    )
+
+                    for j in range(MAX_ADDRESS_COUNT):
+                        gr.Dropdown(
+                            label=f"Address column header {j + 1}"
+                        )
 
     # Event Listeners
 
