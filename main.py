@@ -6,9 +6,29 @@ MAX_ADDRESS_COUNT = 10
 
 def excel_file_changed(excel_path):
     if excel_path is None:
-        return None
+        return [None] * (1 + MAX_RESPONDENT_COUNT + (MAX_RESPONDENT_COUNT * MAX_ADDRESS_COUNT))
+    
+    excel_data_frame = pd.read_excel(excel_path)
 
-    return pd.read_excel(excel_path)
+    column_headers = excel_data_frame.columns.to_list()
+
+    name_dropdowns = []
+    all_address_dropdowns = []
+    for i in range(MAX_RESPONDENT_COUNT):
+        name_dropdown = gr.Dropdown(
+            choices=column_headers,
+            value=column_headers[0]
+        )
+        name_dropdowns.append(name_dropdown)
+
+        for j in range(MAX_ADDRESS_COUNT):
+            address_dropdown = gr.Dropdown(
+                choices=column_headers,
+                value=column_headers[0]
+            )
+            all_address_dropdowns.append(address_dropdown)
+
+    return [excel_data_frame, *name_dropdowns, *all_address_dropdowns]
 
 def respondent_slider_changed(respondent_count):
     respondent_tabs = []
@@ -58,16 +78,20 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
     gr.Markdown("### Step 3: Select Respondent's Name and Address Column Headers ###")
 
     respondent_tabs = []
-
+    name_dropdowns = []
+    all_address_dropdowns = []
+                    
     for i in range(MAX_RESPONDENT_COUNT):
         with gr.Tab(label=f"Respondent {i + 1}", visible=i==0) as respondent_tab:
             respondent_tabs.append(respondent_tab)
 
             with gr.Row():
                 with gr.Column():
-                    gr.Dropdown(
-                        label="Name column header"
+                    name_dropdown = gr.Dropdown(
+                        label="Name column header",
+                        interactive=True
                     )
+                    name_dropdowns.append(name_dropdown)
 
                 with gr.Column():
                     address_slider = gr.Slider(
@@ -83,9 +107,11 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
                     for j in range(MAX_ADDRESS_COUNT):
                         address_dropdown = gr.Dropdown(
                             label=f"Address column header {j + 1}",
-                            visible=j==0
+                            visible=j==0,
+                            interactive=True
                         )
                         address_dropdowns.append(address_dropdown)
+                        all_address_dropdowns.append(address_dropdown)
                     
                     address_slider.change(
                         fn=address_slider_changed,
@@ -98,7 +124,7 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
     excel_file.change(
         fn=excel_file_changed,
         inputs=excel_file,
-        outputs=excel_data_frame
+        outputs=[excel_data_frame, *name_dropdowns, *all_address_dropdowns]
     )
 
     respondent_slider.change(
