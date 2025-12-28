@@ -20,6 +20,16 @@ def respondent_slider_changed(respondent_count):
 
     return respondent_tabs
 
+def address_slider_changed(address_count):
+    address_dropdowns = []
+
+    for i in range(MAX_ADDRESS_COUNT):
+        address_dropdown = gr.Dropdown(visible=i < address_count)
+
+        address_dropdowns.append(address_dropdown)
+    
+    return address_dropdowns
+
 with gr.Blocks(title="CNICA Excel Cleaner") as app:
     gr.Markdown("# CNICA Excel Cleaner")
 
@@ -60,18 +70,28 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
                     )
 
                 with gr.Column():
-                    gr.Slider(
+                    address_slider = gr.Slider(
                         label="No. of Address column headers",
                         minimum=1,
                         maximum=MAX_ADDRESS_COUNT,
                         step=1,
+                        value=1,
                         interactive=True
                     )
-
+                    
+                    address_dropdowns = []
                     for j in range(MAX_ADDRESS_COUNT):
-                        gr.Dropdown(
-                            label=f"Address column header {j + 1}"
+                        address_dropdown = gr.Dropdown(
+                            label=f"Address column header {j + 1}",
+                            visible=j==0
                         )
+                        address_dropdowns.append(address_dropdown)
+                    
+                    address_slider.change(
+                        fn=address_slider_changed,
+                        inputs=address_slider,
+                        outputs=address_dropdowns
+                    )
 
     # Event Listeners
 
