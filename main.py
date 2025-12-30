@@ -2,6 +2,7 @@ import gradio as gr
 import pandas as pd
 
 
+DEBUG = True
 MAX_RESPONDENT_COUNT = 10
 MAX_ADDRESS_COUNT = 10
 
@@ -112,6 +113,33 @@ def clean_button_clicked(excel_data_frame, respondent_count, *inputs):
 
             print(respondent)
 
+
+def test_button_clicked():
+    data_frame = pd.read_excel("./Sample Data 1.xlsx")
+
+    column_headers = data_frame.columns.to_list()
+    
+    name_dropdown_1 = gr.Dropdown(
+        choices=column_headers,
+        value="BORROWER NAME"
+    )
+
+    name_dropdown_2 = gr.Dropdown(
+        choices=column_headers,
+        value="Co-Applicant 1 Name"
+    )
+    
+    address_dropdown_1 = gr.Dropdown(
+        choices=column_headers,
+        value="Borrower Address"
+    )
+
+    address_dropdown_2 = gr.Dropdown(
+        choices=column_headers,
+        value="Co-Applicant 1 - Address"
+    )
+
+    return [data_frame, 2, name_dropdown_1, name_dropdown_2, 1, 1, address_dropdown_1, address_dropdown_2]
 
 # Create the main Gradio app interface
 with gr.Blocks(title="CNICA Excel Cleaner") as app:
@@ -239,5 +267,16 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
         # Pass the dataframe, slider value, all name dropdowns, address sliders, and address dropdowns
         inputs=[excel_data_frame, respondent_slider, *name_dropdowns, *address_sliders, *all_address_dropdowns]
     )
+
+    if DEBUG:
+        test_button = gr.Button("Test")
+
+        test_button.click(
+            fn=test_button_clicked,
+            outputs=[excel_data_frame, respondent_slider, 
+                    name_dropdowns[0], name_dropdowns[1], 
+                    address_sliders[0], address_sliders[1],
+                    all_address_dropdowns[0], all_address_dropdowns[10]]
+        )
 
 app.launch()
