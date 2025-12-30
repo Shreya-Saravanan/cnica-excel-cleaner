@@ -1,10 +1,44 @@
 import gradio as gr
 import pandas as pd
 
+from google import genai
+from pydantic import BaseModel
+
+import logging
+
 
 DEBUG = True
 MAX_RESPONDENT_COUNT = 10
 MAX_ADDRESS_COUNT = 10
+
+GEMINI_MODEL_NAME = "gemini-3-flash-preview"
+GEMINI_PROMPT_PREFIX = "Split the following row of addresses into columns such as Recipient Name/Entity Name, Address Line 1/Care of Name, Address Line 2, Address Line 3, District, State and PIN Code. " \
+    "For Name and Care of Name add salutations like Mr., Mrs., Ms. or M/s. if missing. " \
+    "For Care of Name add prefixes like s/o, d/o, f/o, m/o, h/o, w/o or c/o if missing. " \
+    "Correct spelling mistakes and punctuations in an address if necessary. " \
+    "Correct an incomplete address if necessary. " \
+    "Remove redundancy in an address if necessary. " \
+    "Convert everything to Proper case."
+GEMINI_MAX_RESPONDENT_COUNT = 50
+
+
+logging.basicConfig(
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    level=logging.INFO
+)
+
+
+class Respondent(BaseModel):
+    name: str
+    address_line_1: str
+    address_line_2: str
+    address_line_3: str
+    district: str
+    state: str
+    pin_code: str
+
+class RespondentList(BaseModel):
+    respondents: list[Respondent]
 
 
 # This function runs whenever someone uploads or changes the Excel file
@@ -96,23 +130,56 @@ def clean_button_clicked(excel_data_frame, respondent_count, *inputs):
         # Store this respondent's address columns in the dictionary
         address_column_headers_dict[i] = address_column_headers
 
+    gemini_client = genai.Client()
 
-    # Loop through only the number of respondents the user selected
+    cleaned_data_frame = pd.DataFrame()
+
     for i in range(respondent_count):
-        # Loop through each row in the Excel data
-        # row_index is the row number, row is the actual data
+        # Collecting all names and addresses
+        respondents = []
+        
         for row_index, row in excel_data_frame.iterrows():
-            # Get the name value from the Excel for this respondent
-            # .loc[row, column] gets the value at that position
-            respondent = str(excel_data_frame.loc[row_index, name_column_headers[i]])
+            name = str(excel_data_frame.loc[row_index, name_column_headers[i]])
 
-            # Loop through the address columns this respondent has
+            if name is None or len(name.strip()) <= 1:
+                continue
+
+            respondent = name
+
             for j in range(0, address_header_counts[i]):
-                # Add each address field to the respondent string, separated by comma
                 respondent += ", " + str(excel_data_frame.loc[row_index, address_column_headers_dict[i][j]])
 
-            print(respondent)
+            respondents.append(respondent)
 
+        # Processing 50 names and addresses
+        for j in range(0, len(respondents), GEMINI_MAX_RESPONDENT_COUNT):
+            from_index = j
+            to_index = min(j + GEMINI_MAX_RESPONDENT_COUNT, len(respondents))
+
+            gemini_prompt = GEMINI_PROMPT_PREFIX
+
+            for k in range(from_index, to_index):
+                gemini_prompt += "\n" + respondents[k]
+
+            if DEBUG:
+                logging.info(f"Gemini Prompt: {gemini_prompt}")
+
+            gemini_response = gemini_client.models.generate_content(
+                model=GEMINI_MODEL_NAME, 
+                contents=gemini_prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "response_json_schema": RespondentList.model_json_schema()
+                }
+            )
+
+            gemini_json = RespondentList.model_validate_json(gemini_response.text)
+
+            if DEBUG:
+                logging.info(f"Gemini Response: {gemini_json}")
+
+            
+        
 
 def test_button_clicked():
     data_frame = pd.read_excel("./Sample Data 1.xlsx")
