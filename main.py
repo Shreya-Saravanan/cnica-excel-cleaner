@@ -132,16 +132,17 @@ def clean_button_clicked(excel_data_frame, respondent_count, *inputs):
 
     gemini_client = genai.Client()
 
-    cleaned_data_frame = pd.DataFrame()
+    cleaned_excel_data_frame = pd.DataFrame()
 
     for i in range(respondent_count):
         # Collecting all names and addresses
         respondents = []
+        respondents_row_indexes = []
         
         for row_index, row in excel_data_frame.iterrows():
             name = str(excel_data_frame.loc[row_index, name_column_headers[i]])
 
-            if name is None or len(name.strip()) <= 1:
+            if name == "None" or len(name.strip()) <= 1:
                 continue
 
             respondent = name
@@ -150,12 +151,14 @@ def clean_button_clicked(excel_data_frame, respondent_count, *inputs):
                 respondent += ", " + str(excel_data_frame.loc[row_index, address_column_headers_dict[i][j]])
 
             respondents.append(respondent)
+            respondents_row_indexes.append(row_index)
 
         # Processing 50 names and addresses
         for j in range(0, len(respondents), GEMINI_MAX_RESPONDENT_COUNT):
             from_index = j
             to_index = min(j + GEMINI_MAX_RESPONDENT_COUNT, len(respondents))
 
+            # Preparing the Gemini prompt
             gemini_prompt = GEMINI_PROMPT_PREFIX
 
             for k in range(from_index, to_index):
@@ -164,6 +167,7 @@ def clean_button_clicked(excel_data_frame, respondent_count, *inputs):
             if DEBUG:
                 logging.info(f"Gemini Prompt: {gemini_prompt}")
 
+            # Processing the Gemini prompt
             gemini_response = gemini_client.models.generate_content(
                 model=GEMINI_MODEL_NAME, 
                 contents=gemini_prompt,
@@ -178,7 +182,20 @@ def clean_button_clicked(excel_data_frame, respondent_count, *inputs):
             if DEBUG:
                 logging.info(f"Gemini Response: {gemini_json}")
 
-            
+            # Updating the cleaned excel data frame
+            for k in range(from_index, to_index):
+                respondent = gemini_json.respondents[k - from_index]
+                respondent_row_index = respondents_row_indexes[k]
+
+                cleaned_excel_data_frame.loc[respondent_row_index, f"Respondent {i + 1} Name"] = respondent.name
+                cleaned_excel_data_frame.loc[respondent_row_index, f"Respondent {i + 1} Address Line 1"] = respondent.address_line_1
+                cleaned_excel_data_frame.loc[respondent_row_index, f"Respondent {i + 1} Address Line 2"] = respondent.address_line_2
+                cleaned_excel_data_frame.loc[respondent_row_index, f"Respondent {i + 1} Address Line 3"] = respondent.address_line_3
+                cleaned_excel_data_frame.loc[respondent_row_index, f"Respondent {i + 1} District"] = respondent.district
+                cleaned_excel_data_frame.loc[respondent_row_index, f"Respondent {i + 1} State"] = respondent.state
+                cleaned_excel_data_frame.loc[respondent_row_index, f"Respondent {i + 1} PIN Code"] = respondent.pin_code
+
+    return cleaned_excel_data_frame
         
 
 def test_button_clicked():
@@ -332,7 +349,8 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
     clean_button.click(
         fn=clean_button_clicked,
         # Pass the dataframe, slider value, all name dropdowns, address sliders, and address dropdowns
-        inputs=[excel_data_frame, respondent_slider, *name_dropdowns, *address_sliders, *all_address_dropdowns]
+        inputs=[excel_data_frame, respondent_slider, *name_dropdowns, *address_sliders, *all_address_dropdowns],
+        outputs=cleaned_excel_data_frame
     )
 
     if DEBUG:
