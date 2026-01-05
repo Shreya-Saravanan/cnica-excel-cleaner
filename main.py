@@ -40,6 +40,9 @@ class Respondent(BaseModel):
 class RespondentList(BaseModel):
     respondents: list[Respondent]
 
+# Rebuild the model to ensure it's fully defined
+RespondentList.model_rebuild()
+
 
 # This function runs whenever someone uploads or changes the Excel file
 def excel_file_changed(excel_path):
@@ -100,8 +103,42 @@ def address_slider_changed(address_count):
         address_dropdown = gr.Dropdown(visible=i < address_count)
 
         address_dropdowns.append(address_dropdown)
-    
+
     return address_dropdowns
+
+
+# This function runs when the first address dropdown is changed
+def first_address_dropdown_changed(selected_column, address_count, excel_data_frame):
+    if excel_data_frame is None or selected_column is None:
+        # Return empty updates for all address dropdowns except the first
+        return [gr.Dropdown() for _ in range(MAX_ADDRESS_COUNT - 1)]
+
+    # Get all column headers from the Excel file
+    column_headers = excel_data_frame.columns.to_list()
+
+    # Find the index of the selected column
+    try:
+        selected_index = column_headers.index(selected_column)
+    except ValueError:
+        # If column not found, return empty updates
+        return [gr.Dropdown() for _ in range(MAX_ADDRESS_COUNT - 1)]
+
+    # Create updates for the remaining address dropdowns
+    address_dropdown_updates = []
+
+    for i in range(1, MAX_ADDRESS_COUNT):
+        # Calculate the index of the adjacent column
+        adjacent_index = selected_index + i
+
+        # Check if the adjacent index is within bounds and if this dropdown should be visible
+        if adjacent_index < len(column_headers) and i < address_count:
+            # Update the dropdown with the adjacent column
+            address_dropdown_updates.append(gr.Dropdown(value=column_headers[adjacent_index]))
+        else:
+            # Don't update if out of bounds or not visible
+            address_dropdown_updates.append(gr.Dropdown())
+
+    return address_dropdown_updates
 
 
 # This function runs when user clicks the "Clean" button
@@ -195,35 +232,39 @@ def clean_button_clicked(excel_data_frame, respondent_count, *inputs):
                 cleaned_excel_data_frame.loc[respondent_row_index, f"Respondent {i + 1} State"] = respondent.state
                 cleaned_excel_data_frame.loc[respondent_row_index, f"Respondent {i + 1} PIN Code"] = respondent.pin_code
 
+    # Append all original columns from the Excel file to the end of the cleaned dataframe
+    for column in excel_data_frame.columns:
+        cleaned_excel_data_frame[column] = excel_data_frame[column]
+
     return cleaned_excel_data_frame
         
 
-def test_button_clicked():
-    data_frame = pd.read_excel("./Sample Data 1.xlsx")
+# def test_button_clicked():
+#     data_frame = pd.read_excel("./Sample Data 1.xlsx")
 
-    column_headers = data_frame.columns.to_list()
-    
-    name_dropdown_1 = gr.Dropdown(
-        choices=column_headers,
-        value="BORROWER NAME"
-    )
+#     column_headers = data_frame.columns.to_list()
 
-    name_dropdown_2 = gr.Dropdown(
-        choices=column_headers,
-        value="Co-Applicant 1 Name"
-    )
-    
-    address_dropdown_1 = gr.Dropdown(
-        choices=column_headers,
-        value="Borrower Address"
-    )
+#     name_dropdown_1 = gr.Dropdown(
+#         choices=column_headers,
+#         value="BORROWER NAME"
+#     )
 
-    address_dropdown_2 = gr.Dropdown(
-        choices=column_headers,
-        value="Co-Applicant 1 - Address"
-    )
+#     name_dropdown_2 = gr.Dropdown(
+#         choices=column_headers,
+#         value="Co-Applicant 1 Name"
+#     )
 
-    return [data_frame, 2, name_dropdown_1, name_dropdown_2, 1, 1, address_dropdown_1, address_dropdown_2]
+#     address_dropdown_1 = gr.Dropdown(
+#         choices=column_headers,
+#         value="Borrower Address"
+#     )
+
+#     address_dropdown_2 = gr.Dropdown(
+#         choices=column_headers,
+#         value="Co-Applicant 1 - Address"
+#     )
+
+#     return [data_frame, 2, name_dropdown_1, name_dropdown_2, 1, 1, address_dropdown_1, address_dropdown_2]
 
 # Create the main Gradio app interface
 with gr.Blocks(title="CNICA Excel Cleaner") as app:
@@ -304,12 +345,19 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
                         address_dropdowns.append(address_dropdown)
                         # Also add to the big list of ALL address dropdowns
                         all_address_dropdowns.append(address_dropdown)
-                    
+
                     # Set up event listener: when address slider changes...
                     address_slider.change(
                         fn=address_slider_changed,
                         inputs=address_slider,
                         outputs=address_dropdowns
+                    )
+
+                    # Set up event listener: when first address dropdown changes, auto-populate adjacent columns
+                    address_dropdowns[0].change(
+                        fn=first_address_dropdown_changed,
+                        inputs=[address_dropdowns[0], address_slider, excel_data_frame],
+                        outputs=address_dropdowns[1:]  # Update all dropdowns except the first
                     )
 
     gr.Markdown("### Step 4: Clean Excel File ###")
@@ -353,15 +401,15 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
         outputs=cleaned_excel_data_frame
     )
 
-    if DEBUG:
-        test_button = gr.Button("Test")
+    # if DEBUG:
+    #     test_button = gr.Button("Test")
 
-        test_button.click(
-            fn=test_button_clicked,
-            outputs=[excel_data_frame, respondent_slider, 
-                    name_dropdowns[0], name_dropdowns[1], 
-                    address_sliders[0], address_sliders[1],
-                    all_address_dropdowns[0], all_address_dropdowns[10]]
-        )
+    #     test_button.click(
+    #         fn=test_button_clicked,
+    #         outputs=[excel_data_frame, respondent_slider,
+    #                 name_dropdowns[0], name_dropdowns[1],
+    #                 address_sliders[0], address_sliders[1],
+    #                 all_address_dropdowns[0], all_address_dropdowns[10]]
+    #     )
 
 app.launch()
