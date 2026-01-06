@@ -236,7 +236,11 @@ def clean_button_clicked(excel_data_frame, respondent_count, *inputs):
     for column in excel_data_frame.columns:
         cleaned_excel_data_frame[column] = excel_data_frame[column]
 
-    return cleaned_excel_data_frame
+    # Save the cleaned dataframe to an Excel file for download
+    output_file_path = "cleaned_excel_data.xlsx"
+    cleaned_excel_data_frame.to_excel(output_file_path, index=False)
+
+    return cleaned_excel_data_frame, output_file_path
         
 
 # def test_button_clicked():
@@ -376,6 +380,14 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
         interactive=False
     )
 
+    gr.Markdown("### Step 5: Download Cleaned Excel File ###")
+
+    # Create a download button for the cleaned Excel file
+    download_button = gr.DownloadButton(
+        label="Download",
+        visible=True
+    )
+
     # Event Listeners
 
     # When the Excel file changes (uploaded or removed)...
@@ -398,7 +410,7 @@ with gr.Blocks(title="CNICA Excel Cleaner") as app:
         fn=clean_button_clicked,
         # Pass the dataframe, slider value, all name dropdowns, address sliders, and address dropdowns
         inputs=[excel_data_frame, respondent_slider, *name_dropdowns, *address_sliders, *all_address_dropdowns],
-        outputs=cleaned_excel_data_frame
+        outputs=[cleaned_excel_data_frame, download_button]
     )
 
     # if DEBUG:
